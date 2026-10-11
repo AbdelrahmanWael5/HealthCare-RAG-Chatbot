@@ -1,6 +1,6 @@
 # Hypertension Healthcare RAG Assistant
 
-An educational medical question-answering assistant focused on
+A medical question-answering assistant focused on
 **hypertension (high blood pressure)**. It uses Retrieval-Augmented
 Generation (RAG) to retrieve relevant passages from trusted health
 resources and generate answers grounded in that context.
