@@ -21,12 +21,8 @@ resources and generate answers grounded in that context.
 -   [Project Structure](#project-structure)
 -   [Installation](#installation)
 -   [Running the Application](#running-the-application)
--   [Pipeline Details](#pipeline-details)
 -   [Example Questions](#example-questions)
 -   [Evaluation and Limitations](#evaluation-and-limitations)
--   [Safety Considerations](#safety-considerations)
--   [Roadmap](#roadmap)
--   [License](#license)
 
 ## Project Overview
 
