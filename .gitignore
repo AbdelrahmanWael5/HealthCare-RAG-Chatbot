@@ -1,9 +1,61 @@
+# Python cache and compiled files
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Virtual environments
 .venv/
 venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
+.envrc
+
+# Distribution and packaging
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Type checking and linting
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Jupyter
 .ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# IDEs and operating systems
+.vscode/
+.idea/
 .DS_Store
+
+# Local application secrets
+.streamlit/secrets.toml
+
+# Temporary files
+tempCodeRunnerFile.py
