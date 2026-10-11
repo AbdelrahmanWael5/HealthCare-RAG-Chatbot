@@ -43,84 +43,98 @@ a Streamlit chat interface.
 
 ## Key Features
 
--   Domain-specific knowledge base focused on hypertension and
-    blood-pressure education.
--   Content collected from WHO, CDC, and MedlinePlus resources.
--   Structured JSON preprocessing and JSONL chunk/embedding artifacts.
--   Token-aware chunks of up to approximately 500 tokens with around 100
-    tokens of overlap.
--   Semantic retrieval using `BAAI/bge-m3` embeddings and FAISS.
--   Answer generation with `mistralai/Mistral-7B-Instruct-v0.2`.
--   Structured output validated with Pydantic.
--   Source metadata returned with answers.
--   An `insufficient_information` field intended to identify questions
-    the current context cannot adequately answer.
--   Streamlit chat UI with conversation history and source details.
--   Persistent local vector index so it does not need to be rebuilt at
-    every application launch.
+- **Domain-specific knowledge base:** Focused on hypertension and blood pressure awareness.
+- **Trusted medical sources:** Content collected from WHO, CDC, and MedlinePlus resources.
+- **Structured data processing:** Source documents are extracted, cleaned, and organized into structured JSON files, then split into overlapping text chunks and stored as JSONL records with relevant metadata.
+- **Section-aware chunking:** Creates chunks of up to approximately 500 tokens with around 100 tokens of overlap to preserve context across chunk boundaries.
+- **Hybrid Retrieval:** Combines dense semantic retrieval using `BAAI/bge-m3` and FAISS with sparse lexical retrieval to capture both conceptual similarity and exact keyword matches.
+- **Reciprocal Rank Fusion (RRF):** Merges the ranked results from dense and sparse retrieval into a unified ranking, leveraging the complementary strengths of both retrieval methods without requiring their raw scores to be directly comparable.
+- **Reranking:** Applies a reranker to the fused candidate results to improve relevance ordering, prioritizing passages that are most relevant to the user's query before they are passed to the language model. This helps reduce irrelevant context and can improve the quality and grounding of generated answers.
+- **LLM-based answer generation:** Uses `mistralai/Mistral-7B-Instruct-v0.2` to generate answers based on the retrieved context.
+- **Structured output validation:** Uses Pydantic to validate the generated response structure.
+- **Source attribution:** Preserves and returns source metadata to help users trace answers to the retrieved documents.
+- **Interactive Streamlit interface:** Provides a chat UI with conversation history and source details.
 
 ## Architecture
 
-``` text
-WHO / CDC / MedlinePlus source documents
+```text
+WHO / CDC / MedlinePlus Source Documents
                   |
                   v
-       Extraction and preprocessing
+       Extraction and Preprocessing
                   |
                   v
-       Structured JSON documents
+       Structured JSON Documents
                   |
                   v
-       Token-aware text chunking
+        Section-Aware Chunking
                   |
                   v
-      Chunks + source metadata (JSONL)
+      Text Chunks + Source Metadata
+               (JSONL)
                   |
                   v
-       BAAI/bge-m3 embeddings
+          BAAI/bge-m3 Embeddings
                   |
                   v
-           FAISS vector index
+           FAISS Vector Index
+                  |
+                  |
+             User Question
                   |
                   v
-             User question
+          +-------------------+
+          |  Hybrid Retrieval  |
+          +-------------------+
+             /             \
+            v               v
+     Dense Retrieval   Sparse Retrieval
+     (FAISS + BGE-M3)  (Lexical Search)
+            |               |
+            v               v
+       Ranked Dense     Ranked Sparse
+         Results          Results
+            \               /
+             v             v
+          Reciprocal Rank Fusion
+                 (RRF)
                   |
                   v
-       Query embedding and retrieval
+          Fused Candidate Results
                   |
                   v
-      Relevant passages + metadata
+              Reranker
                   |
                   v
-       Mistral 7B Instruct generation
+       Top-Ranked Relevant Passages
+             + Metadata
                   |
                   v
-     Answer + sources + status fields
+       Mistral-7B-Instruct-v0.2
                   |
                   v
-           Streamlit chat UI
+      Structured Answer Generation
+                  |
+                  v
+     Answer + Sources + Status Fields
+                  |
+                  v
+           Streamlit Chat UI
 ```
 
 ### Retrieval-Augmented Generation (RAG)
 
-1.  **Ingest:** extract text from source documents and normalize it into
-    structured records.
-2.  **Chunk:** split text into overlapping passages while preserving
-    document titles and section paths.
-3.  **Embed:** encode chunks using `BAAI/bge-m3`; embeddings are
-    normalized and have 1,024 dimensions.
-4.  **Index:** store vectors and associated documents in a local FAISS
-    index.
-5.  **Retrieve:** embed the user's question with the same embedding
-    model and retrieve relevant passages.
-6.  **Generate:** pass retrieved context to Mistral to produce a
-    grounded response.
-7.  **Validate and display:** validate the structured response, check
-    source-number references against retrieved documents, and display
-    the answer and source details in Streamlit.
+1. **Ingest:** Extract text from source documents and normalize it into structured records while preserving relevant document metadata.
+2. **Chunk:** Split the extracted text into overlapping passages while preserving document titles and section paths.
+3. **Embed:** Encode chunks using `BAAI/bge-m3`, producing normalized, 1,024-dimensional embeddings.
+4. **Index:** Store the embeddings and associated documents in a local FAISS vector index for dense similarity search.
+5. **Hybrid Retrieve:** Retrieve candidate passages using both dense semantic retrieval and sparse lexical retrieval to capture conceptual similarity and exact keyword matches.
+6. **Fuse Results:** Apply **Reciprocal Rank Fusion (RRF)** to combine the ranked results from both retrieval methods into a unified candidate list.
+7. **Rerank:** Use a reranker to evaluate and reorder the fused candidates by their relevance to the user's question, prioritizing the most relevant passages for the generation stage.
+8. **Generate:** Pass the selected, reranked passages to `mistralai/Mistral-7B-Instruct-v0.2` to generate a context-grounded response.
+9. **Validate and Display:** Validate the structured response using Pydantic, verify that cited source numbers correspond to retrieved documents, and display the answer and source details in the Streamlit interface.
 
-RAG and schema validation can improve traceability, but they do not
-guarantee that every answer is correct or fully supported.
+RAG, result fusion, reranking, and schema validation can improve retrieval relevance, traceability, and answer grounding, but they do not guarantee that every generated statement is factually correct or fully supported by the retrieved evidence.
 
 ## Knowledge Sources
 
@@ -140,9 +154,6 @@ Current processed files include: - `who.json` -
 `medical_encyclopedia.json` - `blood_pressure_measurement.json` -
 `hypertension_management_toolkit.json`
 
-These filenames describe the current local dataset; they do not imply
-that all content from these organizations has been ingested. Preserve
-original URLs, titles, and section metadata when adding sources.
 
 ## Technology Stack
 
@@ -156,11 +167,20 @@ original URLs, titles, and section metadata when adding sources.
 
   Embedding integration   Hugging Face and LangChain             Loads and runs
                                                                  embeddings
+                                                                    
+  Dense Retrieval         FAISS                                  Retrieves semantically
+                                                                 similar document chunks
+                                                                        
+  Sparse Retrieval        BM25                                   Matches important terms 
+                                                                 and exact keywords
 
-  Vector database/index   FAISS                                  Similarity search over
-                                                                 chunks
+  Hybrid Fusion           Reciprocal Rank Fusion (RRF)           Combines dense and sparse retrieval 
+                                                                 rankings into a unified candidate list
 
-  Generation model        `mistralai/Mistral-7B-Instruct-v0.2`   Generates answers using
+  Reranking               Cross-Encoder Reranker                 Reorders retrieved candidates according
+                                                                 to their relevance to the user's query
+
+  Generation model        `mistralai/Mistral-7B-Instruct-v0.2`   Generates answers grounded in the
                                                                  retrieved context
 
   Model runtime           Hugging Face Transformers              Tokenization and text
@@ -180,9 +200,6 @@ original URLs, titles, and section metadata when adding sources.
   --------------------------------------------------------------------------------------
 
 ## Project Structure
-
-The layout below reflects the current workflow and artifacts. Adjust it
-to match the exact contents of your repository.
 
 ``` text
 healthcare-rag-assistant/
@@ -208,46 +225,16 @@ healthcare-rag-assistant/
 └── README.md
 ```
 
-The tree includes artifacts used in the workflow. If ingestion,
-chunking, and embedding scripts are included in your repository, place
-them in a dedicated directory such as `scripts/` or `src/ingestion/` and
-document their actual names and commands. `requirements.txt` is
-recommended; add a tested, pinned dependency list rather than assuming
-one exists.
-
-The persisted FAISS index is located at `data/vector_db/hypertension/`
-and currently consists of `index.faiss` and `index.pkl`. Do not commit
-model weights or large datasets without considering repository size,
-licenses, and data provenance.
-
 ## Installation
 
 ### 1. Clone the repository
 
 ``` bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/AbdelrahmanWael5/HealthCare-RAG-Chatbot
 cd <YOUR_REPOSITORY_DIRECTORY>
 ```
 
-Replace the placeholders with your actual repository URL and directory.
-
-### 2. Create a virtual environment
-
-**Windows PowerShell**
-
-``` powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-**Linux / macOS**
-
-``` bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Install dependencies
+### 2. Install dependencies
 
 If `requirements.txt` is available:
 
@@ -274,71 +261,6 @@ Run from the repository root, where `app.py` is located:
 streamlit run app.py
 ```
 
-Open the local URL printed by Streamlit, usually
-`http://localhost:8501`. The app loads the local vector store and
-initializes the generation model. The first model load may take time if
-model weights need to be downloaded.
-
-### Troubleshooting
-
--   **Vector store not found:** check that
-    `data/vector_db/hypertension/index.faiss` and `index.pkl` exist and
-    that you launched Streamlit from the repository root.
--   **Import error for `src.generation`:** verify `src/generation.py`
-    exists and run the command from the project root.
--   **CUDA/BitsAndBytes error:** verify the PyTorch/CUDA combination and
-    BitsAndBytes installation. The current 4-bit model-loading setup
-    expects a compatible NVIDIA GPU environment; CPU-only execution is
-    not guaranteed.
--   **Hugging Face warnings or rate limits:** configure a Hugging Face
-    token in your environment if needed. Never commit access tokens to
-    Git.
--   **Slow startup/high memory use:** loading a 7B model is
-    resource-intensive. Consider a smaller model or hardware-appropriate
-    configuration.
--   **FAISS optimization warnings:** unavailable CPU instruction-set
-    optimizations may cause a slower fallback; check whether an actual
-    exception occurs before treating the warning as fatal.
-
-## Pipeline Details
-
-  -------------------------------------------------------------------------------------------------
-  Artifact                Path                                              Purpose
-  ----------------------- ------------------------------------------------- -----------------------
-  Processed source        `data/processed/hypertension/`                    Structured content and
-  documents                                                                 metadata
-
-  Text chunks             `data/chunks/hypertension_chunks.jsonl`           One chunk per JSONL
-                                                                            record
-
-  Chunk embeddings        `data/embeddings/hypertension_embeddings.jsonl`   Embeddings and
-                                                                            associated metadata
-
-  FAISS vectors           `data/vector_db/hypertension/index.faiss`         Similarity-search index
-
-  FAISS document          `data/vector_db/hypertension/index.pkl`           Documents and mappings
-  store/mapping                                                             associated with the
-                                                                            LangChain FAISS store
-  -------------------------------------------------------------------------------------------------
-
-### Updating the knowledge base
-
-When adding a document:
-
-1.  Extract and normalize the text and metadata.
-2.  Add it to the processed dataset.
-3.  Chunk it using the established chunking rules.
-4.  Generate embeddings with the same model and configuration.
-5.  Add the vectors and documents to the hypertension index, or rebuild
-    the index consistently.
-6.  Test retrieval relevance for questions about the new content.
-7.  Test answer grounding, source references, and insufficient-context
-    behavior.
-
-All vectors in a given index must use the same embedding model and
-dimensionality. If the embedding model or important preprocessing rules
-change, rebuild the index rather than mixing incompatible vectors.
-
 ## Example Questions
 
 -   What are common risk factors for hypertension?
@@ -347,93 +269,3 @@ change, rebuild the index rather than mixing incompatible vectors.
 -   What complications can hypertension cause?
 -   What does the available information say about monitoring blood
     pressure?
-
-For individual treatment decisions---including choosing a medication or
-determining a personal dose---the assistant should make the limitations
-of its knowledge base clear and direct the user to a qualified
-healthcare professional.
-
-## Evaluation and Limitations
-
-The retrieval pipeline has been manually smoke-tested with
-representative questions about risk factors, home blood-pressure
-measurement, lifestyle changes, and complications. The current local
-index contains **172 embedded chunks**. These tests are useful
-development checks, not a formal benchmark or evidence of clinical
-reliability.
-
-Known limitations:
-
--   **Limited corpus:** the system covers only the documents in the
-    current hypertension dataset.
--   **Potential hallucinations:** retrieval grounding reduces reliance
-    on model memory but does not eliminate unsupported statements.
--   **Insufficient-information classification needs work:** a cautious
-    answer does not always cause the `insufficient_information` flag to
-    be set correctly. This requires explicit tests and improvement.
--   **No clinical validation:** the project has not been established as
-    safe for diagnosis, triage, or treatment decisions.
--   **No formal benchmark yet:** retrieval relevance, faithfulness,
-    citation correctness, refusal behavior, and latency need systematic
-    evaluation.
--   **Hardware requirements:** the current quantized 7B generation model
-    expects a compatible GPU setup.
--   **Source freshness:** public-health recommendations may change;
-    source versions and update dates should be tracked.
-
-Recommended evaluation work: 1. Build a curated test set with expected
-supporting documents and answer criteria. 2. Measure retrieval using
-metrics such as Recall@k and MRR. 3. Review answer faithfulness and
-source attribution against retrieved passages. 4. Test out-of-scope
-questions and personalized medication/dosage requests. 5. Record
-latency, memory use, failures, and dependency/model versions. 6. Repeat
-tests after changing the corpus, embedding model, prompt, or generation
-model.
-
-## Safety Considerations
-
--   Clearly distinguish educational information from individualized
-    medical advice.
--   Do not recommend or calculate personalized prescription doses.
--   Make uncertainty and missing evidence visible.
--   Preserve traceability to the source material and display source
-    information.
--   Do not treat retrieved content as automatically correct or
-    clinically complete.
--   Do not send personal health information to external services without
-    appropriate privacy and security controls.
--   Before real-world or clinical deployment, seek qualified medical
-    review, conduct safety testing, and address privacy, security, and
-    applicable regulatory requirements.
-
-## Roadmap
-
--   [ ] Add a reproducible end-to-end ingestion and indexing CLI.
--   [ ] Add a tested, pinned `requirements.txt`.
--   [ ] Add automated tests for chunking, retrieval, structured output,
-    and error handling.
--   [ ] Improve insufficient-context detection, especially for
-    medication and dosage questions.
--   [ ] Add retrieval and answer-quality evaluation reports.
--   [ ] Display clickable source URLs and relevant excerpts in the UI.
--   [ ] Track source versions, ingestion dates, and update/re-index
-    workflows.
--   [ ] Add incremental indexing and support for additional knowledge
-    collections if required.
--   [ ] Add performance measurements without storing sensitive user
-    information.
--   [ ] Define resource, security, and safety requirements before
-    deployment.
-
-## Contributing
-
-Contributions are welcome. Please keep changes scoped and reproducible,
-update tests where appropriate, preserve source metadata, and test both
-answerable and insufficient-context questions. Never commit credentials,
-private health information, or unnecessary large binary artifacts.
-
-## License
-
-No license has been specified in this README. Add a `LICENSE` file
-before distributing the project or accepting external contributions, and
-verify the terms for source materials, model weights, and dependencies.
